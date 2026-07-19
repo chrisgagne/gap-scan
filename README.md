@@ -6,7 +6,7 @@ The questions are drawn from a book I am writing.
 
 **Take it here: <https://chrisgagne.github.io/gap-scan/>** — or download [index.html](index.html) and open it locally, offline if you like.
 
-## No data is collected or stored
+## Your answers never leave your browser
 
 The whole app is one self-contained HTML file. It makes no network requests, sets no cookies, and uses no storage of any kind; your answers live only in the open tab and are gone when you close it. You can verify this yourself: view source (no fetch, no beacon, no analytics, no external URLs), or run the file offline.
 
