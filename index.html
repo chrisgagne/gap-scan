@@ -184,6 +184,7 @@
 #gap-scan-app .demand-band{position:absolute; top:50%; height:28px; transform:translateY(-50%); border-radius:4px; border:2px dashed var(--ink-2); background:transparent; z-index:2;}
 #gap-scan-app .brow-read{font-size:.84rem; color:var(--ink-2); margin-top:.35rem;}
 #gap-scan-app .brow-read .poleword{font-weight:600;}
+#gap-scan-app .brow-gloss{font-size:.76rem; color:var(--ink-3); margin-top:3px; line-height:1.4;}
 
 /* legend */
 #gap-scan-app .legend{display:flex; flex-wrap:wrap; gap:16px 22px; margin:1rem 0 .2rem; font-size:.82rem; color:var(--ink-2);}
@@ -234,6 +235,7 @@
         <p id="introFit"></p>
         <p id="introHonest"></p>
         <p id="introPair"></p>
+        <p id="introWho"></p>
       </div>
       <div class="time-est" id="introTime"></div>
       <p class="fine" id="introPrivacy"></p>
@@ -345,9 +347,10 @@ const COPY = {
   introHead: "The Gap Scan",
   introLead: "Not a leadership quiz. There is no score, no archetype, no “you are 72% agile.” For each leadership paradigm it puts two things on one line, what the situation in front of you called for, as you read it, and where your own instincts default, and <em>the space between them is the finding.</em>",
   introFit: "<strong>Neither pole is the goal. The fit is.</strong> A leader who sits at “control,” in a situation that genuinely called for control, has no gap and nothing to fix. The only finding is <strong>distance</strong>: where your habitual pole and what the work actually asked for have drifted apart. Close is the good result.",
-  introHonest: "It anchors on <strong>a specific, recent episode</strong>. Pick one time in the last few months when the pressure was real: a missed target, an escalation, a call that went badly. The situation questions read that episode; the instinct questions ask for the last real time you did each thing, which may reach a little wider. Either way you’ll answer about <strong>what happened</strong>, because belief rounds up to the flattering answer and behaviour is harder to flatter.",
+  introHonest: "It anchors on <strong>a specific, recent episode</strong>. Pick one time in the last few months when the pressure was real: a missed target, an escalation, a call that went badly. The situation questions read that episode; the instinct questions ask for the last real time you did each thing, which may reach a little wider. Either way you’ll answer about <strong>what happened</strong>, because belief rounds up to the flattering answer and behaviour is harder to flatter. The scan doesn’t collect or store your answers: everything runs in your browser and vanishes when you close the page.",
   introPair: "Stop whenever you like, once the scan has enough to say something honest. Answer more and the reading tightens. Answer fewer and it stays plain about what it doesn’t know.",
   introPrivacy: "The scan runs entirely in your browser. Your answers are never sent or stored anywhere; they live only in this tab and are gone when you close it.",
+  introWho: "<strong>It assumes you lead people.</strong> The questions presume direct reports and accountability for a team delivering under pressure, so choose an episode where you could shape how the work was run. If that doesn’t describe your role, the scan can’t give you a fair reading.",
   introTimeLead: "Two parts: the situation first, then your instincts. Roughly:",
   introTime: [
     {t:"5 min", d:"a first sense"},
@@ -365,7 +368,7 @@ const COPY = {
 
   againLabel: "run it again on another situation",
 
-  disclaimer: "This is a hypothesis made from your own observations, not a diagnosis or a validated psychometric. Either pole can be the right fit for a given situation. The scan reports the tension between where your instincts default and what the work in front of you called for, and leaves the judgement of what to do with you. The bands show consistency, not statistical confidence: they widen when you answer less, and when your own answers on one paradigm disagree. The questions are drawn from a book I am writing."
+  disclaimer: "This is a hypothesis made from your own observations, not a diagnosis or a validated psychometric. Either pole can be the right fit for a given situation. The scan reports the tension between where your instincts default and what the work in front of you called for, and leaves the judgement of what to do with you. Your answers never leave your browser. The bands show consistency, not statistical confidence: they widen when you answer less, and when your own answers on one paradigm disagree. The questions are drawn from a book I am writing."
 };
 
 /* ---------- domain metadata ---------- */
@@ -374,10 +377,16 @@ const DOMAINS = {
   complicated:{label:"Complicated", blurb:"hard but knowable: the right expertise could work it out", band:null},
   complex:    {label:"Complex", blurb:"genuinely novel: cause and effect clear only in hindsight", band:null},
   chaotic:    {label:"Chaotic", blurb:"crisis: no time to analyse, act first to stabilise", band:null},
-  aporetic:   {label:"Aporetic", blurb:"you consciously held the uncertainty instead of forcing a frame", band:[55,85], central:true, productive:true},
+  aporetic:   {label:"Held open", blurb:"you consciously held the uncertainty instead of forcing a frame", band:[55,85], central:true, productive:true},
   confused:   {label:"Confused", blurb:"the kind of problem was never clearly read; habit filled the gap", band:[35,80], central:true, productive:false}
 };
 const CHOICE_POS = {a:15, mid:50, b:85};
+// 'na' (neither fits / no recent example) is a recorded response but carries NO evidence:
+// it never enters positions, axis counts, or report gates. Route every consumer through these.
+const isEvidence = v => v !== 'na';
+function evidenceCount(){
+  return state.answeredList.filter(k => isEvidence(state.answers[k])).length;
+}
 
 /* ---------- state ---------- */
 const state = {
@@ -511,14 +520,14 @@ function startFeed(){
 // count axes with >= MIN_PER_AXIS answered (a "complete" axis)
 function axisAnswerCounts(){
   const c={};
-  Object.keys(state.answers).forEach(k=>{ const ax=k.split('|')[0]; c[ax]=(c[ax]||0)+1; });
+  Object.entries(state.answers).forEach(([k,v])=>{ if(!isEvidence(v)) return; const ax=k.split('|')[0]; c[ax]=(c[ax]||0)+1; });
   return c;
 }
 function reportableAxes(){
   const c=axisAnswerCounts(); return Object.keys(c).filter(ax=>c[ax]>=MIN_PER_AXIS);
 }
 function canReport(){
-  return state.answeredList.length>=MIN_TOTAL && reportableAxes().length>=3;
+  return evidenceCount()>=MIN_TOTAL && reportableAxes().length>=3;
 }
 function renderFeedProgress(){
   const answered = state.answeredList.length;
@@ -531,7 +540,7 @@ function renderFeedProgress(){
   fill.classList.toggle('past-min', canReport());
   $('feedProgLabel').textContent = COPY.feedProgLabel;
   const rep=reportableAxes().length;
-  $('feedProgCount').textContent = answered ? `${answered} of ${SERVE.length} answered · ${rep} of ${PARADIGMS.length} paradigms in view` : "";
+  $('feedProgCount').textContent = answered ? `${answered} of ${SERVE.length} reviewed · ${rep} of ${PARADIGMS.length} paradigms in view` : "";
 }
 function nextUnansweredPos(from){
   for(let i=from;i<SERVE.length;i++){ if(!(SERVE[i] in state.answers)) return i; }
@@ -559,16 +568,19 @@ function renderFeedCard(revisit){
       <button class="opt pole-pick" data-c="${top.c}" role="radio" aria-checked="false" aria-pressed="false">
         <span class="key">1</span><span class="otext">${top.text}</span></button>
       <button class="opt pole-mid mid" data-c="mid" role="radio" aria-checked="false" aria-pressed="false">
-        <span class="key">↓</span><span class="otext">A bit of both, or it depended</span></button>
+        <span class="key">↓</span><span class="otext">Both were part of what I did</span></button>
       <button class="opt pole-pick" data-c="${bottom.c}" role="radio" aria-checked="false" aria-pressed="false">
         <span class="key">2</span><span class="otext">${bottom.text}</span></button>
+      <button class="opt pole-mid mid" data-c="na" role="radio" aria-checked="false" aria-pressed="false">
+        <span class="key">0</span><span class="otext">Neither fits, or there’s no recent example (leave this one out)</span></button>
     </div>
     <div class="kbd-hint">
       <span><kbd>1</kbd> top</span>
       <span><kbd>↓</kbd> both</span>
       <span><kbd>2</kbd> bottom</span>
+      <span><kbd>0</kbd> leave out</span>
       <span><kbd>⌫</kbd> back</span>
-      <span style="margin-left:auto;">answered ${state.answeredList.length}</span>
+      <span style="margin-left:auto;">reviewed ${state.answeredList.length}</span>
     </div>`;
   // restore prior answer highlight if re-visiting (match by pole, not position)
   const prior = state.answers[key];
@@ -617,7 +629,7 @@ function updateStopBar(){
   if(ok){
     $('feedStopNote').textContent = "Enough to read now. Keep going to tighten it, or stop here.";
   } else {
-    const need = Math.max(0, MIN_TOTAL - state.answeredList.length);
+    const need = Math.max(0, MIN_TOTAL - evidenceCount());
     const repNeed = Math.max(0, 3 - reportableAxes().length);
     $('feedStopNote').textContent = need>0
       ? `A few more to read the pattern (${need} to go).`
@@ -633,7 +645,7 @@ function axisPosition(ax){
   const p=paradigmByAxis(ax); const vals=[];
   p.items.forEach(it=>{
     const k=ax+'|'+it.evidence_type;
-    if(k in state.answers) vals.push(CHOICE_POS[state.answers[k]]);
+    if(k in state.answers && isEvidence(state.answers[k])) vals.push(CHOICE_POS[state.answers[k]]);
   });
   if(!vals.length) return null;
   return {mean: vals.reduce((a,b)=>a+b,0)/vals.length, n:vals.length, vals};
@@ -702,11 +714,28 @@ function renderResult(){
   const dom = state.domain, dm = DOMAINS[dom], central = domainIsCentral();
   const dir = netDirection(rows);
   const M = rows.length;                                   // reportable axes count
-  const totalAns = state.answeredList.length;
+  const totalAns = evidenceCount();
+  const naCount = state.answeredList.length - totalAns;
   const incoherentRows = rows.filter(r=>r.coh && r.coh.contradiction).length;
 
   // ---- domain pill ----
   $('resDomPill').textContent = "Read as " + dm.label;
+
+  // ---- not enough evidence: refuse to read rather than dress up an empty report ----
+  if(M<3 || totalAns<MIN_TOTAL){
+    $('resHead').innerHTML = "Not enough here to <em>read you fairly.</em>";
+    let why = `The scan has ${totalAns} scored answer${totalAns===1?'':'s'} across ${M} paradigm${M===1?'':'s'}, below the floor it needs before it will say anything.`;
+    if(naCount>=3) why += ` You left ${naCount} prompts out as not fitting or having no recent example. If that kept happening, the scan's frame (leading a team that delivers under pressure) may not match your seat; that's its limit, not yours.`;
+    $('resSub').textContent = why;
+    $('resConfText').textContent = "An honest instrument sometimes has to decline. Answer more prompts, or retake it against an episode from work where you led the delivery.";
+    $('resBoardHead').textContent = ""; $('resLegend').innerHTML=""; $('resBoard').innerHTML="";
+    $('resCallouts').innerHTML=""; $('resInterp').textContent="";
+    const mb=$('resMoreBtn');
+    mb.style.display = nextUnansweredPos(0)!==-1 ? '' : 'none';
+    mb.textContent = 'Answer more →';
+    $('resDisclaimer').innerHTML = COPY.disclaimer;
+    return;
+  }
 
   // ---- confidence banner (evidence-consistency) ----
   const avgN = rows.reduce((a,r)=>a+r.n,0)/Math.max(1,M);
@@ -717,6 +746,9 @@ function renderResult(){
   if(incoherentRows>0){
     conf += ` On ${incoherentRows} paradigm${incoherentRows===1?'':'s'} your own answers pointed different ways. That band stays open however much you answered, because the disagreement is the finding.`;
   }
+  conf = `Based on ${totalAns} scored answer${totalAns===1?'':'s'} across ${M} of ${PARADIGMS.length} paradigms. ` + conf;
+  if(naCount>0) conf += ` You left ${naCount} prompt${naCount===1?'':'s'} out (didn’t fit, or no recent example); ${naCount===1?'it':'they'} added no evidence.`;
+  conf += " The instinct side reads your recent defaults, not only what you did inside this one episode.";
   $('resConfText').textContent = conf;
   const moreBtn=$('resMoreBtn');
   const moreLeft = nextUnansweredPos(0)!==-1;
@@ -804,6 +836,7 @@ function renderResult(){
           <div class="you-dot" style="left:${meanX}%;"></div>
         </div>
         <div class="brow-read">${readWord}</div>
+        <div class="brow-gloss">${r.p.poleA} = ${r.p.poleA_gloss} · ${r.p.poleB} = ${r.p.poleB_gloss}</div>
       </div>`;
   }).join('');
 
@@ -848,6 +881,7 @@ function paintStatic(){
   $('introFit').innerHTML = COPY.introFit;
   $('introHonest').innerHTML = COPY.introHonest;
   $('introPair').innerHTML = COPY.introPair;
+  $('introWho').innerHTML = COPY.introWho;
   $('introPrivacy').textContent = COPY.introPrivacy;
   $('introTime').innerHTML =
     `<span style="width:100%; margin-bottom:2px;">${COPY.introTimeLead}</span>` +
@@ -884,6 +918,7 @@ document.addEventListener('keydown', e=>{
     if(e.key==='1'||e.key==='ArrowUp') choice=topPole;
     else if(e.key==='2') choice=bottomPole;
     else if(e.key==='3'||e.key==='ArrowDown'||k==='m') choice='mid';
+    else if(e.key==='0'||k==='n') choice='na';
     if(choice){ markKeying('feedCard'); answerFeed(key, choice); e.preventDefault(); }
     else if(e.key==='Enter' && canReport()){ goResult(); e.preventDefault(); }
     else if(e.key==='Backspace'){ feedBack(); e.preventDefault(); }
